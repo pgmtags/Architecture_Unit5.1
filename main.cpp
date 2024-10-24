@@ -7,70 +7,99 @@
 
 using namespace std;
 
-// Function to output text with color
-string coloredText(const string& text, const string& colorCode) {
+// Output text with color
+auto coloredText(const string &text, const string &colorCode) -> string {
     return "\033[" + colorCode + "m" + text + "\033[0m";
 }
 
-// Function to check file name format
-bool isValidFileName(const string& filename) {
+// Check file name format
+bool isValidFileName(const string &filename) {
     const filesystem::path filePath(filename);
     // Check if the file has an extension
     return filePath.has_extension() && filePath.is_relative();
 }
 
-// Function to read the file and output an array of bytes
-void readBytesFromFile(const string& filename, int n) {
+// Reading bytes from a file
+vector<unsigned char> readBytesFromFile(const string &filename, const int n, long &bytesRead) {
     ifstream file(filename, ios::binary);
     if (!file.is_open()) {
         cout << coloredText("Error: file not found.", "31") << endl;
-        return;
+        return {};
     }
 
-    vector<unsigned char> bytes;
-    bytes.resize(n);
+    vector<unsigned char> bytes(n);
     file.read(reinterpret_cast<char *>(bytes.data()), n);
-    long bytesRead = file.gcount();
+    bytesRead = file.gcount();
     file.close();
 
-    // Output array of bytes
-    cout << coloredText("Byte sequence:", "34") << endl;
-    for (int i = 0; i < bytesRead; ++i) {
-        cout << static_cast<int>(bytes[i]) << " ";
-    }
-    cout << endl;
+    return bytes;
+}
 
-    // Form binary sequence
+// Outputting bytes in decimal format with grey underline for spaces (ASCII 32)
+void printBytes(const vector<unsigned char> &bytes, const long bytesRead) {
+    for (int i = 0; i < bytesRead; ++i) {
+        if (const int byteValue = static_cast<int>(bytes[i]); byteValue == 32) {
+            // If the byte equals 32 (space), output it with a grey underline
+            cout << coloredText("__32__", "90") << " "; // "90" — grey color
+        } else {
+            // Normal byte output
+            cout << byteValue << " ";
+        }
+    }
+
+    cout << endl;
+}
+
+// Outputting bytes in binary format
+void printBinarySequence(const vector<unsigned char> &bytes, const long bytesRead) {
     cout << coloredText("Binary sequence:", "36") << endl;
     for (int i = 0; i < bytesRead; ++i) {
-        unsigned char byte = bytes[i];
-        for (int j = 7; j >= 0; --j) { cout << ((byte >> j) & 1); }
+        const unsigned char byte = bytes[i];
+        for (int j = 7; j >= 0; --j) {
+            cout << ((byte >> j) & 1);
+        }
         cout << " ";
     }
     cout << endl;
+}
 
-    // Perform a right circular shift by 3 bits
-    cout << coloredText("Right shift -> by 3 bits:", "35") << endl;
-    for (int i = 0; i < bytesRead; ++i) {
-        unsigned char byte = bytes[i];
-        byte = (byte >> 3) | ((byte & 0x07) << 5);
-        bytes[i] = byte;
-        // Output bytes after the shift in red color
-        cout << coloredText("", "31");
-        for (int j = 7; j >= 0; --j) { cout << ((byte >> j) & 1); }
-        cout << " ";
+
+// Function to cyclically shift the entire array of bytes to the right by 3 bits
+void performRightShift(vector<unsigned char> &bytes, const long bytesRead) {
+    cout << "Right shift -> by 3 bits (entire array):" << endl;
+
+    // First, save the three lowest bits of the last byte to later insert into the first byte
+    const unsigned char carryOver = bytes[static_cast<size_t>(bytesRead) - 1] & 0x07; // 0x07 = 00000111
+
+    // Shift bytes taking into account the transfer of bits between bytes
+    for (size_t i = static_cast<size_t>(bytesRead) - 1; i > 0; --i) {
+        const unsigned char nextCarry = bytes[i - 1] & 0x07; // Save the three lowest bits of the previous byte
+        bytes[i] = (bytes[i] >> 3) | (nextCarry << 5); // Shift the byte and add 3 bits from the previous byte
     }
-    cout << endl;
 
-    // Find the minimum byte
-    unsigned char minByte = *min_element(bytes.begin(), bytes.begin() + bytesRead);
+    // Process the first byte, add three bits from the last byte to the high order bits
+    bytes[0] = (bytes[0] >> 3) | (carryOver << 5);
+}
+
+
+// Finding the minimum byte and outputting it
+unsigned char findMinByte(const vector<unsigned char> &bytes, const long bytesRead) {
+    // Search for the minimum byte only among the actually read bytes
+    const unsigned char minByte = *min_element(bytes.begin(), bytes.begin() + bytesRead);
+
+    // Output the minimum byte in binary format
     cout << coloredText("Minimum byte: ", "33");
     for (int j = 7; j >= 0; --j) {
         cout << ((minByte >> j) & 1);
     }
     cout << " " << static_cast<int>(minByte) << endl;
 
-    // Count the number of minimum bytes
+    return minByte;
+}
+
+
+// Counting all minimum bytes
+void countMinBytes(const vector<unsigned char> &bytes, const long bytesRead, const unsigned char minByte) {
     int count = 0;
     for (int i = 0; i < bytesRead; ++i) {
         if (bytes[i] == minByte) {
@@ -80,16 +109,24 @@ void readBytesFromFile(const string& filename, int n) {
     cout << coloredText("Count: ", "33") << count << endl;
 }
 
+void processFile(const string &filename, const int n) {
+    long bytesRead = 0;
+    vector<unsigned char> bytes = readBytesFromFile(filename, n, bytesRead);
+    if (bytes.empty()) return;
+
+    printBytes(bytes, bytesRead);
+    printBinarySequence(bytes, bytesRead);
+    performRightShift(bytes, bytesRead);
+    printBytes(bytes, bytesRead);
+    printBinarySequence(bytes, bytesRead);
+    const unsigned char minByte = findMinByte(bytes, bytesRead);
+    countMinBytes(bytes, bytesRead, minByte);
+}
+
 int main() {
     string filename;
     cout << "Enter file name (only the name with extension): ";
     cin >> filename;
-
-    // Check file name
-    if (!isValidFileName(filename)) {
-        cout << coloredText("Error: file name must include an extension and be relative.", "31") << endl;
-        return 1;
-    }
 
     int n;
     cout << "Enter the number of bytes (3-30): ";
@@ -99,7 +136,7 @@ int main() {
     if (n < 3 || n > 30) { n = 10; }
 
     cout << coloredText("Check: OK", "32") << endl;
-    readBytesFromFile(filename, n);
+    processFile(filename, n);
 
     return 0;
 }
