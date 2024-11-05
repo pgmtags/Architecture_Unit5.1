@@ -3,94 +3,164 @@
 #include <vector>
 #include <bitset>
 #include <algorithm>
-#include <cstdint>
 #include <string>
-#include <iomanip>
+#include <limits>
 
 using namespace std;
 
-// Output text with color
-/*
-    \033[30m = Black
-    \033[31m = Red
-    \033[32m = Green
-    \033[33m = Yellow
-    \033[34m = Blue
-    \033[35m = Magenta
-    \033[36m = Cyan
-    \033[37m = White
-    \033[0m = Reset to default
-*/
-auto coloredText(const string &text, const string &colorCode) -> string {
-    return "\033[" + colorCode + "m" + text + "\033[0m";
+const string RED_COLOR = "\033[31m";
+const string GREEN_COLOR = "\033[32m";
+const string CYAN_COLOR = "\033[36m";
+const string YELLOW_COLOR = "\033[33m";
+const string GRAY_COLOR = "\033[90m";
+
+// Function to read numbers from a file
+vector<int> readNumbersFromFile(ifstream &file, const int n) {
+    vector<int> numbers;
+    int number;
+
+    // Read integers from the file
+    while (file >> number && numbers.size() < n) {
+        numbers.push_back(number);
+    }
+
+    return numbers;
 }
 
-void printBinary(const vector<uint8_t> &bytes) {
-    for (const auto &byte: bytes) {
-        bitset<8> b(byte);
-        cout << b << " ";
+// Function to print numbers in a colorful way
+string color(const string& str, const string& color) {
+    return color + str + "\033[0m"; // ANSI escape code to reset the color
+}
+
+// Function to check if a number is a space character
+bool isSpace(const int number) {
+    return number == 32;
+}
+
+// Function to convert a decimal number to its binary representation
+string decimalToBinary(const int number) {
+    // Check if the number is negative
+    if (number < 0) {
+        cout << color("Negative numbers are not supported.", RED_COLOR) << endl;
+        return "";
     }
-    cout << endl;
+
+    // Use 8 bits to represent the number
+    return bitset<8>(number).to_string();
+}
+
+// Function to print a list of numbers
+string printNumbers(const vector<int> &numbers) {
+    string result;
+    for (const auto &number : numbers) {
+        if (isSpace(number)) {
+            result += color(to_string(number), GRAY_COLOR) + " ";
+        } else {
+            result += to_string(number) + " ";
+        }
+    }
+    return result;
+}
+
+// Function to print a list of numbers in binary format
+string printBinary(const vector<int> &numbers) {
+    string result;
+    for (const auto &number : numbers) {
+        if (isSpace(number)) {
+            result += color(decimalToBinary(number), GRAY_COLOR) + " ";
+        } else {
+            result += decimalToBinary(number) + " "; // Convert each number to binary
+        }
+    }
+
+    return result;
+}
+
+// Function to get the filename from the user
+string getFilename() {
+    string filename;
+
+    // Loop until the user enters a valid filename
+    while (true) {
+        cout << "Enter the file name (only name with extension): ";
+        cin >> filename;
+
+        // Try to open the file
+        if (const ifstream file(filename); file) {
+            cout << color("Check: OK", GREEN_COLOR) << endl;
+            return filename;
+        }
+
+        cout << color("Invalid file name! Please try again.", RED_COLOR) << endl;
+    }
+}
+
+// Function to get the number of bytes from the user
+int getValidatedByteCount() {
+    int n;
+
+    while (true) {
+        cout << "Enter the number of integers (3-30): ";
+        cin >> n;
+
+        // Check if the input is valid and within the range
+        if (!cin.fail()) {
+            if (n >= 3 && n <= 30) { return n; } else { return 10; }
+        }
+
+        // Clear the error flag and ignore the rest of the line if the input is invalid
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
 }
 
 int main() {
-    string filename;
-    cout << "Enter file name (only the name with extension): ";
-    cin >> filename;
+    // Get the filename from the user
+    const string filename = getFilename();
 
-    // Check the correct file name
-    ifstream file(filename, ios::binary);
+    // Open the file
+    ifstream file(filename);
+
+    // Check if the file was successfully opened
     if (!file) {
-        cerr << coloredText("Invalid file name!", "31") << endl;
+        cout << color("Error opening file '" + filename + "'!", RED_COLOR) << endl;
         return 1;
     }
-    cout << coloredText("Check: OK", "32") << endl;
 
-    int n;
-    cout << "Enter the number of bytes (3-30): ";
-    cin >> n;
+    // Get the number of integers from the user
+    const int n = getValidatedByteCount();
+    cout << "Accept the value of n: " << n << endl;
 
-    // Adjust the value of n
-    if (n < 3) { n = 10; } else if (n > 26) { n = 26; }
+    // Read the integers from the file
+    vector<int> numbers = readNumbersFromFile(file, n);
+    file.close();
 
-    vector<uint8_t> bytes(n);
-    file.read(reinterpret_cast<char *>(bytes.data()), n);
-    if (size_t bytesRead = file.gcount(); bytesRead < n) {
-        bytes.resize(bytesRead);
+    // Print the number sequence
+    cout << color("Number sequence: ", CYAN_COLOR) << printNumbers(numbers) << endl;
+
+    // Print the binary sequence
+    cout << color("Binary sequence: ", CYAN_COLOR) << printBinary(numbers) << endl;
+
+    // Circular right shift by 3 bits for each number
+    for (int &number: numbers) {
+        number = (number >> 3) | (number << (8 - 3)); // Only considering 8 bits for the shift
     }
 
-    // Output the array in decimal form
-    cout << coloredText("Byte sequence: ", "36");
-    for (const uint8_t &byte: bytes) { cout << static_cast<int>(byte) << " "; }
-    cout << endl;
+    // Find the minimum number
+    const int minNumber = *min_element(numbers.begin(), numbers.end());
+    const auto minCount = static_cast<int>(count(numbers.begin(), numbers.end(), minNumber));
 
-    // Output the binary array
-    cout << coloredText("Binary sequence(32 - is Space): ", "36");
-    printBinary(bytes);
-
-    // Cyclic shift to the right by 3 bits
-    vector<uint8_t> shiftedBytes(bytes);
-    for (uint8_t &byte: shiftedBytes) { byte = (byte >> 3) | (byte << (8 - 3)); }
-
-    // Finding the minimum byte
-    auto minByte = *min_element(shiftedBytes.begin(), shiftedBytes.end());
-    auto minCount = count(shiftedBytes.begin(), shiftedBytes.end(), minByte);
-
-    // Output the binary array after the shift
-    cout << coloredText("Shift to the right by 3 bits: ", "36");
-    for (const auto &byte: shiftedBytes) {
-        if (byte == minByte) {
-            cout << coloredText(bitset<8>(byte).to_string(), "31") << " ";
-        } else {
-            cout << bitset<8>(byte) << " ";
-        }
+    // Print the numbers after the shift
+    cout << color("After right shift by 3 bits: ", CYAN_COLOR);
+    for (const int number: numbers) {
+        cout << color(decimalToBinary(number), number == minNumber ? RED_COLOR : "") << " ";
     }
     cout << endl;
 
-    // Display the minimum byte in color
-    cout << coloredText("Minimum byte: ", "33");
-    cout << minCount << " - " << coloredText(static_cast<string>(bitset<8>(minByte).to_string()), "31") << ", that's number: ";
-    cout << static_cast<int>(minByte) << endl;
+    // Display the minimum number in color
+    cout << color("Minimum number: ", YELLOW_COLOR) << minCount << " - ";
+    cout << color(decimalToBinary(minNumber), RED_COLOR);
+    cout << ", it is number: " << minNumber << endl;
 
     return 0;
 }
