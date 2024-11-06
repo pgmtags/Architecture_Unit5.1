@@ -5,32 +5,66 @@
 #include <algorithm>
 #include <string>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 
+// Define color codes based on platform
+#ifdef _WIN32
+const int RED_COLOR = 4;
+const int GREEN_COLOR = 2;
+const int CYAN_COLOR = 3;
+const int YELLOW_COLOR = 6;
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+#else
 const string RED_COLOR = "\033[31m";
 const string GREEN_COLOR = "\033[32m";
 const string CYAN_COLOR = "\033[36m";
 const string YELLOW_COLOR = "\033[33m";
+#endif
+
+// Platform-specific function for coloring text
+void setColor(const string &colorCode) {
+#ifdef _WIN32
+    SetConsoleTextAttribute(hConsole, stoi(colorCode));
+#else
+    cout << colorCode;
+#endif
+}
+
+void resetColor() {
+#ifdef _WIN32
+    SetConsoleTextAttribute(hConsole, 7); // Default console color for Windows
+#else
+    cout << "\033[0m";
+#endif
+}
+
+// Function to color text (platform-independent)
+string color(const string &str, const string &colorCode) {
+#ifdef _WIN32
+    setColor(to_string(stoi(colorCode)));
+    cout << str;
+    resetColor();
+    return "";
+#else
+    return colorCode + str + "\033[0m";
+#endif
+}
 
 // Function to read numbers from a file
 vector<int> readNumbersFromFile(ifstream &file, const int n) {
     vector<int> numbers;
     int number;
 
-    // Reading integers from the file
     while (file >> number && numbers.size() < n) {
         numbers.push_back(number);
     }
-
     return numbers;
 }
 
-// Function to print numbers with color
-string color(const string &str, const string &color) {
-    return color + str + "\033[0m"; // ANSI escape code to reset color
-}
-
-// Function to print a list of numbers
 string printNumbers(const vector<int> &numbers) {
     string result;
     for (const auto &number: numbers) {
@@ -47,46 +81,43 @@ vector<int> decimalToBinaryArray(const vector<int> &numbers) {
             cout << color("Negative numbers are not supported.", RED_COLOR) << endl;
             continue;
         }
-        // Use 8 bits to represent the number
         bitset<8> bits(number);
         for (int i = 0; i < 8; ++i) {
-            binaryArray.push_back(bits[i]); // Add each bit to the vector
+            binaryArray.push_back(bits[i]);
         }
     }
     return binaryArray;
 }
 
-// Function to print the binary array, separating every 8 bits with a space
+// Function to print the binary array with spacing
 void printBinaryArray(const vector<int> &binaryArray) {
     for (size_t i = 0; i < binaryArray.size(); i += 8) {
         for (int j = 0; j < 8 && (i + j) < binaryArray.size(); ++j) {
             cout << binaryArray[i + j];
         }
-        cout << " "; // Space between bytes
+        cout << " ";
     }
     cout << endl;
 }
 
-// Function to right shift the array by 3
 vector<int> rightShiftArray(const vector<int> &binaryArray, int shift) {
-    int n = binaryArray.size();
+    size_t n = binaryArray.size();
     vector<int> shiftedArray(n);
-    shift = shift % n; // Handle cases where the shift is greater than the array size
+    shift = shift % n;
 
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
         shiftedArray[(i + shift) % n] = binaryArray[i];
     }
     return shiftedArray;
 }
 
-// Function to convert the binary array back to bytes
 vector<int> binaryArrayToBytes(const vector<int> &binaryArray) {
     vector<int> bytes;
     for (size_t i = 0; i < binaryArray.size(); i += 8) {
         int byteValue = 0;
         for (int j = 0; j < 8; ++j) {
             if (i + j < binaryArray.size()) {
-                byteValue = (byteValue << 1) | binaryArray[i + j]; // Construct the byte
+                byteValue = (byteValue << 1) | binaryArray[i + j];
             }
         }
         bytes.push_back(byteValue);
@@ -95,67 +126,67 @@ vector<int> binaryArrayToBytes(const vector<int> &binaryArray) {
 }
 
 int main() {
-    // Get the file name from the user
     string filename;
-    cout << "Enter the file name (just the name with extension): ";
+    cout << "Enter the file name: ";
     cin >> filename;
 
-    // Open the file
-    ifstream file(filename);
-    if (!file) {
+    ifstream file(filename, ios::binary);
+    if (!file.is_open()) {
         cout << color("Error opening file '" + filename + "'!", RED_COLOR) << endl;
         return 1;
     }
 
-    // Get the number of integers from the user
     int n;
-    cout << "Enter the number of bytes (3-30): ";
+    cout << "Enter the number of bytes (1-32): ";
     cin >> n;
 
-    // Read integers from the file
-    vector<int> numbers = readNumbersFromFile(file, n);
-    file.close();
+    n = max(1, min(n, 32));
+    vector<unsigned char> bytes(n);
+    file.read(reinterpret_cast<char*>(bytes.data()), n);
 
-    // Print the original sequence of numbers
-    cout << color("Byte sequence: ", CYAN_COLOR) << printNumbers(numbers) << endl;
-
-    // Convert to binary array
-    vector<int> binaryArray = decimalToBinaryArray(numbers);
-
-    // Print the binary array
-    cout << color("Binary sequence: ", CYAN_COLOR);
-    printBinaryArray(binaryArray);
-
-    // Right shift by 3
-    vector<int> shiftedArray = rightShiftArray(binaryArray, 3);
-
-    // Convert the binary array to bytes
-    vector<int> byteArray = binaryArrayToBytes(shiftedArray);
-
-    // Find the minimum byte in the shifted array
-    int minByte = *min_element(byteArray.begin(), byteArray.end());
-
-    // Print the shifted binary array, highlighting the minimum byte
-    cout << color("Right shift -> by 3 bits: ", CYAN_COLOR);
-    for (size_t i = 0; i < shiftedArray.size(); i += 8) {
-        for (int j = 0; j < 8 && (i + j) < shiftedArray.size(); ++j) {
-            if (byteArray[i / 8] == minByte && shiftedArray[i + j] == minByte) {
-                cout << color(to_string(shiftedArray[i + j]), RED_COLOR); // Highlight the minimum byte
-            } else {
-                cout << shiftedArray[i + j];
-            }
-        }
-        cout << " "; // Space between bytes
+    cout << color("Byte sequence: ", CYAN_COLOR);
+    for (unsigned char byte : bytes) {
+        cout << static_cast<int>(byte) << " ";
     }
     cout << endl;
 
-    // Highlight the minimum byte in the output
-    cout << color("Minimum byte: ", YELLOW_COLOR);
-    cout << color(bitset<8>(minByte).to_string(), RED_COLOR) << " " << minByte << endl;
+    vector<int> binaryArray;
+    for (unsigned char byte : bytes) {
+        for (int i = 7; i >= 0; --i) {
+            binaryArray.push_back((byte >> i) & 1);
+        }
+    }
 
-    // Count the number of minimum bytes and its decimal value
-    long countMinByte = count(byteArray.begin(), byteArray.end(), minByte);
-    cout << color("Count: ", GREEN_COLOR) << countMinByte << endl;
+    cout << color("Binary sequence: ", CYAN_COLOR);
+    for (size_t i = 0; i < binaryArray.size(); i += 8) {
+        for (int j = 0; j < 8; ++j) {
+            cout << binaryArray[i + j];
+        }
+        cout << " ";
+    }
+    cout << endl;
+
+    rotate(binaryArray.begin(), binaryArray.begin() + 4, binaryArray.end());
+
+    cout << color("Left shift -> by 4 bits: ", CYAN_COLOR);
+    int countReversed = 0;
+    for (size_t i = 0; i < binaryArray.size(); i += 8) {
+        bool isReversed = binaryArray[i] == 1;
+        for (int j = 0; j < 8; ++j) {
+            if (isReversed) {
+                cout << color(to_string(binaryArray[i + 7 - j]), RED_COLOR);
+            } else {
+                cout << binaryArray[i + j];
+            }
+        }
+        if (isReversed) {
+            countReversed++;
+        }
+        cout << " ";
+    }
+    cout << endl;
+
+    cout << color("Number of reversed bytes: ", GREEN_COLOR) << countReversed << endl;
 
     return 0;
 }
