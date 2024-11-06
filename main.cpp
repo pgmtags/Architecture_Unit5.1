@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <bitset>
 #include <windows.h>
@@ -86,16 +87,39 @@ void printBinaryArray(const vector<int> &binaryArray) {
     cout << endl;
 }
 
+int getValidInput() {
+    int n;
+    string input;
+    while (true) {
+        cout << "Enter the number of bytes (1-32): ";
+        cin >> input;
+
+        // Перевірка, чи ввели число
+        stringstream ss(input);
+        if (ss >> n && ss.eof()) {
+            // Перевірка на діапазон
+            if (n <= 0 || n > 32) {
+                cout << "Invalid input, using default value n=13." << endl;
+                n = 13;
+                break;
+            }
+            break;
+        } else {
+            cout << "Invalid input, using default value n=13." << endl;
+            n = 13;
+            break;
+        }
+    }
+    return n;
+}
+
 // Основная функция
 int main() {
     string filename;
     cout << "Enter the file name: ";
     cin >> filename;
 
-    int n;
-    cout << "Enter the number of bytes (1-32): ";
-    cin >> n;
-    n = max(1, min(n, 32));
+    int n = getValidInput();
 
     // Чтение и вывод чисел из файла
     vector<int> numbers = readNumbersFromFile(filename, n);
