@@ -43,13 +43,11 @@ string printNumbers(const vector<int> &numbers) {
 vector<int> decimalToBinaryArray(const vector<int> &numbers) {
     vector<int> binaryArray;
     for (const auto &number: numbers) {
-        if (number < 0) {
-            cout << color("Negative numbers are not supported.", RED_COLOR) << endl;
-            continue;
-        }
+        const int validNumber = abs(number) % 256; // Ensure the number is within 0-255
         // Use 8 bits to represent the number
-        bitset<8> bits(number);
-        for (int i = 0; i < 8; ++i) {
+        bitset<8> bits(validNumber);
+        for (int i = 7; i >= 0; --i) {
+            // Use reverse order to match standard bit representation
             binaryArray.push_back(bits[i]); // Add each bit to the vector
         }
     }
